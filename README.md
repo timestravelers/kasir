@@ -142,9 +142,3 @@
 - Koneksi internet (untuk CDN libraries)
 - **HTTPS** diperlukan untuk fitur kamera scanner
 
-### Langkah Instalasi
-
-1. **Clone repository ini:**
-```bash
-git clone https://github.com/username/aplikasi-pos.git
-cd aplikasi-pos
