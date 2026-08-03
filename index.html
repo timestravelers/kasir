@@ -1947,43 +1947,97 @@ function syncSheet(ss, sheetName, headers, dataArray) {
             printWindow.document.close();
         }
 
-        // ==================== CAMERA SCANNER ====================
-        function openCameraScanner(targetInputId) {
-            activeScannerTargetInputId = targetInputId;
-            openModal('modalCameraScanner');
-            if (!html5QrScanner) html5QrScanner = new Html5Qrcode("cameraScannerReader");
-            const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-            html5QrScanner.start({ facingMode: "environment" }, config, (decodedText) => {
-                if (activeScannerTargetInputId) {
-                    const inputEl = document.getElementById(activeScannerTargetInputId);
-                    if (inputEl) {
-                        inputEl.value = decodedText;
-                        if (activeScannerTargetInputId === 'belanjaFormBarcode') onBelanjaBarcodeChange();
-                        if (activeScannerTargetInputId === 'penjualanFormBarcode') onPenjualanBarcodeChange();
-                    }
+        // Pastikan variabel ini dideklarasikan di scope global/luar fungsi
+// let html5QrScanner;
+// let activeScannerTargetInputId = null;
+// let isFlashOn = false;
+
+// ==================== CAMERA SCANNER ====================
+function openCameraScanner(targetInputId) {
+    activeScannerTargetInputId = targetInputId;
+    openModal('modalCameraScanner');
+    
+    // Inisialisasi scanner jika belum ada
+    if (!html5QrScanner) {
+        html5QrScanner = new Html5Qrcode("cameraScannerReader");
+    }
+    
+    // Pencegahan error: Hentikan scanner sebelumnya jika masih berjalan
+    if (html5QrScanner.isScanning) {
+        html5QrScanner.stop().catch(() => {});
+    }
+
+    // Catatan: Ukuran 250x150 bagus untuk barcode horizontal. 
+    // Jika juga memindai QR Code, pertimbangkan { width: 250, height: 250 }
+    const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+    
+    html5QrScanner.start(
+        { facingMode: "environment" }, 
+        config, 
+        (decodedText) => {
+            // Sukses memindai
+            if (activeScannerTargetInputId) {
+                const inputEl = document.getElementById(activeScannerTargetInputId);
+                if (inputEl) {
+                    inputEl.value = decodedText;
+                    if (activeScannerTargetInputId === 'belanjaFormBarcode') onBelanjaBarcodeChange();
+                    if (activeScannerTargetInputId === 'penjualanFormBarcode') onPenjualanBarcodeChange();
                 }
-                closeCameraScanner();
-            }, () => {}).catch(err => {
-                alertModal("Kamera Gagal", "Gagal membuka kamera: " + err);
-                closeCameraScanner();
-            });
-        }
-
-        function closeCameraScanner() {
-            if (html5QrScanner && html5QrScanner.isScanning) {
-                html5QrScanner.stop().then(() => closeModal('modalCameraScanner')).catch(() => closeModal('modalCameraScanner'));
-            } else { closeModal('modalCameraScanner'); }
-        }
-
-        function toggleCameraFlashlight() {
-            if (html5QrScanner && html5QrScanner.isScanning) {
-                isFlashOn = !isFlashOn;
-                html5QrScanner.applyVideoConstraints({ advanced: [{ torch: isFlashOn }] }).catch(() => {
-                    alertModal("Senter", "Lampu flash tidak didukung.");
-                });
             }
+            closeCameraScanner();
+        }, 
+        (errorMessage) => {
+            // Biarkan kosong untuk menghindari spam console.log setiap frame yang tidak mendeteksi kode
         }
+    ).catch(err => {
+        alertModal("Kamera Gagal", "Gagal membuka kamera: " + err);
+        closeCameraScanner();
+    });
+}
 
+function closeCameraScanner() {
+    if (html5QrScanner && html5QrScanner.isScanning) {
+        html5QrScanner.stop().then(() => {
+            closeModal('modalCameraScanner');
+            isFlashOn = false; // Reset state senter saat ditutup
+        }).catch((err) => {
+            console.warn("Gagal menghentikan scanner secara halus:", err);
+            closeModal('modalCameraScanner');
+        });
+    } else { 
+        closeModal('modalCameraScanner'); 
+    }
+}
+
+function toggleCameraFlashlight() {
+    if (!html5QrScanner || !html5QrScanner.isScanning) return;
+
+    isFlashOn = !isFlashOn;
+
+    // Metode 1: Menggunakan API capabilities (Disarankan untuk html5-qrcode v2.3.8+)
+    try {
+        const capabilities = html5QrScanner.getRunningTrackCameraCapabilities();
+        if (capabilities && capabilities.torchFeature()) {
+            capabilities.torchFeature().apply(isFlashOn);
+            return; // Berhasil, keluar dari fungsi
+        }
+    } catch (e) {
+        // Fallback ke metode lama jika API capabilities tidak tersedia (versi library lama)
+    }
+
+    // Metode 2: Fallback menggunakan applyVideoConstraints
+    // Penting: Properti 'torch' harus ada di level akar DAN di dalam 'advanced' untuk kompatibilitas maksimal [[15]]
+    const constraints = {
+        torch: isFlashOn,
+        advanced: [{ torch: isFlashOn }]
+    };
+
+    html5QrScanner.applyVideoConstraints(constraints).catch(() => {
+        // Jika gagal, kembalikan status isFlashOn dan tampilkan pesan
+        isFlashOn = !isFlashOn; 
+        alertModal("Senter", "Lampu flash tidak didukung oleh perangkat atau browser ini.");
+    });
+}
         // ==================== MODAL HELPERS ====================
         function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
