@@ -555,61 +555,245 @@
                 </ol>
                 <div class="relative">
                     <textarea id="appsScriptCodeText" readonly class="w-full h-36 bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 font-mono text-[10px] text-emerald-400 no-scrollbar">function doGet(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var result = {
-    katalogData: getSheetData(ss, "Katalog"),
-    penjualanHistory: getSheetData(ss, "Penjualan"),
-    belanjaHistory: getSheetData(ss, "Belanja"),
-    pengeluaranHistory: getSheetData(ss, "Pengeluaran")
-  };
-  return ContentService.createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
+// ========================================
+// APLIKASI POS - GOOGLE SHEETS BACKEND
+// Auto-sync database ke Spreadsheet
+// ========================================
+
+function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    
+    // Auto-create sheets jika belum ada
+    ensureSheetExists(ss, "Katalog");
+    ensureSheetExists(ss, "Penjualan");
+    ensureSheetExists(ss, "Belanja");
+    ensureSheetExists(ss, "Pengeluaran");
+    ensureSheetExists(ss, "Hutang");
+    ensureSheetExists(ss, "Settings");
+    ensureSheetExists(ss, "SyncLog");
+    
+    var result = {
+      status: "success",
+      katalogData: getSheetData(ss, "Katalog"),
+      penjualanHistory: getSheetData(ss, "Penjualan"),
+      belanjaHistory: getSheetData(ss, "Belanja"),
+      pengeluaranHistory: getSheetData(ss, "Pengeluaran"),
+      hutangHistory: getSheetData(ss, "Hutang"),
+      settings: getSheetData(ss, "Settings"),
+      lastSync: new Date().toISOString()
+    };
+    
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function doPost(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var data = JSON.parse(e.postData.contents);
-    syncSheet(ss, "Katalog", ["id", "barcode", "nama", "stok", "minStok", "satuan", "hargaPokok", "hargaGrosir", "hargaRetail"], data.katalogData || []);
-    syncSheet(ss, "Penjualan", ["idPenjualan", "tanggal", "tipeCustomer", "namaPembeli", "totalHarga", "dibayar", "kembalian", "labaKotor", "items"], data.penjualanHistory || []);
-    syncSheet(ss, "Belanja", ["idBelanja", "tanggal", "totalHarga", "items"], data.belanjaHistory || []);
-    syncSheet(ss, "Pengeluaran", ["id", "tanggal", "keterangan", "jumlah"], data.pengeluaranHistory || []);
-    return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
+    var startTime = new Date();
+    
+    // Auto-create semua sheet yang diperlukan
+    ensureSheetExists(ss, "Katalog");
+    ensureSheetExists(ss, "Penjualan");
+    ensureSheetExists(ss, "Belanja");
+    ensureSheetExists(ss, "Pengeluaran");
+    ensureSheetExists(ss, "Hutang");
+    ensureSheetExists(ss, "Settings");
+    ensureSheetExists(ss, "SyncLog");
+    
+    // Sync setiap data ke sheet masing-masing
+    var syncResults = [];
+    
+    if (data.katalogData) {
+      syncSheet(ss, "Katalog", 
+        ["id", "barcode", "nama", "stok", "minStok", "satuan", "hargaPokok", "hargaGrosir", "hargaRetail"], 
+        data.katalogData);
+      syncResults.push("Katalog: " + data.katalogData.length + " items");
+    }
+    
+    if (data.penjualanHistory) {
+      syncSheet(ss, "Penjualan",
+        ["idPenjualan", "tanggal", "tipeCustomer", "namaPembeli", "totalHarga", "dibayar", "kembalian", "labaKotor", "items"],
+        data.penjualanHistory);
+      syncResults.push("Penjualan: " + data.penjualanHistory.length + " transaksi");
+    }
+    
+    if (data.belanjaHistory) {
+      syncSheet(ss, "Belanja",
+        ["idBelanja", "tanggal", "totalHarga", "items"],
+        data.belanjaHistory);
+      syncResults.push("Belanja: " + data.belanjaHistory.length + " transaksi");
+    }
+    
+    if (data.pengeluaranHistory) {
+      syncSheet(ss, "Pengeluaran",
+        ["id", "tanggal", "keterangan", "jumlah"],
+        data.pengeluaranHistory);
+      syncResults.push("Pengeluaran: " + data.pengeluaranHistory.length + " data");
+    }
+    
+    if (data.hutangHistory) {
+      syncSheet(ss, "Hutang",
+        ["id", "tanggal", "nama", "hp", "jumlah", "sisa", "keterangan", "jatuhTempo", "lunas"],
+        data.hutangHistory);
+      syncResults.push("Hutang: " + data.hutangHistory.length + " data");
+    }
+    
+    if (data.settings) {
+      syncSheet(ss, "Settings",
+        ["pin", "namaToko", "alamat", "wa"],
+        [data.settings]);
+      syncResults.push("Settings: updated");
+    }
+    
+    // Catat ke log sync
+    logSync(ss, startTime, "SUCCESS", syncResults.join(", "));
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      message: "Data tersinkronisasi",
+      syncResults: syncResults,
+      timestamp: new Date().toISOString()
+    })).setMimeType(ContentService.MimeType.JSON);
+    
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({status: "error", message: error.toString()})).setMimeType(ContentService.MimeType.JSON);
+    try {
+      logSync(SpreadsheetApp.getActiveSpreadsheet(), new Date(), "ERROR", error.toString());
+    } catch(e) {}
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+// ========================================
+// HELPER FUNCTIONS
+// ========================================
+
+function ensureSheetExists(ss, sheetName) {
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    // Beri warna tab sheet agar mudah dibedakan
+    var colors = {
+      "Katalog": "#4285f4",      // Biru
+      "Penjualan": "#0f9d58",    // Hijau
+      "Belanja": "#f4b400",      // Kuning
+      "Pengeluaran": "#db4437",  // Merah
+      "Hutang": "#ff6d00",       // Orange
+      "Settings": "#9c27b0",     // Ungu
+      "SyncLog": "#607d8b"       // Abu-abu
+    };
+    if (colors[sheetName]) {
+      sheet.setTabColor(colors[sheetName].substring(1));
+    }
+  }
+  return sheet;
 }
 
 function getSheetData(ss, sheetName) {
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) return [];
+  
   var data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
+  
   var headers = data[0];
   return data.slice(1).map(row => {
     var obj = {};
     headers.forEach((h, i) => {
-      if (h === "items" && typeof row[i] === "string" && row[i].startsWith("[")) {
-        try { obj[h] = JSON.parse(row[i]); } catch (e) { obj[h] = row[i]; }
-      } else { obj[h] = row[i]; }
+      if (!h) return;
+      
+      // Parse JSON untuk field items
+      if ((h === "items" || h === "lunas") && typeof row[i] === "string") {
+        if (row[i].startsWith("[") || row[i].startsWith("{")) {
+          try { obj[h] = JSON.parse(row[i]); } 
+          catch (e) { obj[h] = row[i]; }
+        } else if (h === "lunas") {
+          obj[h] = row[i].toLowerCase() === "true" || row[i] === true;
+        } else {
+          obj[h] = row[i];
+        }
+      } else {
+        obj[h] = row[i];
+      }
     });
     return obj;
-  });
+  }).filter(obj => Object.keys(obj).length > 0);
 }
 
 function syncSheet(ss, sheetName, headers, dataArray) {
   var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) sheet = ss.insertSheet(sheetName);
-  else sheet.clear();
-  if (dataArray.length === 0) { sheet.appendRow(headers); return; }
-  var outputData = [headers];
-  dataArray.forEach(item => {
-    outputData.push(headers.map(h => {
+  if (!sheet) return;
+  
+  sheet.clear();
+  
+  // Set header dengan style
+  var headerRange = sheet.getRange(1, 1, 1, headers.length);
+  headerRange.setValues([headers]);
+  headerRange.setBackground("#1f2937");
+  headerRange.setFontColor("#fbbf24");
+  headerRange.setFontWeight("bold");
+  headerRange.setHorizontalAlignment("center");
+  sheet.setFrozenRows(1);
+  
+  if (dataArray.length === 0) return;
+  
+  // Prepare data rows
+  var outputData = dataArray.map(item => {
+    return headers.map(h => {
       var val = item[h];
-      return (typeof val === "object" && val !== null) ? JSON.stringify(val) : (val !== undefined && val !== null ? val : "");
-    }));
+      if (val === undefined || val === null) return "";
+      if (typeof val === "object") return JSON.stringify(val);
+      if (typeof val === "boolean") return val.toString();
+      return val;
+    });
   });
-  sheet.getRange(1, 1, outputData.length, outputData[0].length).setValues(outputData);
+  
+  // Tulis data
+  sheet.getRange(2, 1, outputData.length, headers.length).setValues(outputData);
+  
+  // Auto-resize kolom
+  for (var i = 1; i <= headers.length; i++) {
+    sheet.autoResizeColumn(i);
+  }
+}
+
+function logSync(ss, startTime, status, details) {
+  var sheet = ss.getSheetByName("SyncLog");
+  if (!sheet) return;
+  
+  var endTime = new Date();
+  var duration = (endTime - startTime) + "ms";
+  
+  // Tulis header jika sheet kosong
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["Timestamp", "Status", "Duration", "Details", "User"]);
+    sheet.getRange(1, 1, 1, 5).setBackground("#1f2937").setFontColor("#fbbf24").setFontWeight("bold");
+  }
+  
+  sheet.appendRow([
+    endTime.toISOString(),
+    status,
+    duration,
+    details,
+    Session.getActiveUser().getEmail() || "Web App"
+  ]);
+  
+  // Batasi log hanya 100 baris terakhir
+  if (sheet.getLastRow() > 101) {
+    sheet.deleteRow(2);
+  }
 }</textarea>
                     <button onclick="copyScriptCode()" class="absolute right-2 top-2 bg-zinc-800 hover:bg-zinc-700 text-amber-400 text-[10px] px-2 py-1 rounded-lg border border-zinc-700">Copy Code</button>
                 </div>
@@ -995,41 +1179,88 @@ function syncSheet(ss, sheetName, headers, dataArray) {
             alertModal("Sukses", "PIN berhasil diubah!");
         }
 
-        // ==================== UTILITY FUNCTIONS ====================
-        function saveDataLocally() {
-            localStorage.setItem('aplikasi_pos_katalog', JSON.stringify(katalogData));
-            localStorage.setItem('aplikasi_pos_belanja', JSON.stringify(belanjaHistory));
-            localStorage.setItem('aplikasi_pos_penjualan', JSON.stringify(penjualanHistory));
-            localStorage.setItem('aplikasi_pos_pengeluaran', JSON.stringify(pengeluaranHistory));
-            localStorage.setItem('aplikasi_pos_hutang', JSON.stringify(hutangHistory));
-            localStorage.setItem('aplikasi_pos_settings', JSON.stringify(appSettings));
-        }
+// ==================== UTILITY FUNCTIONS ====================
+let autoSyncTimer = null;
 
-        function updateDateHeader() {
-            const now = new Date();
-            const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
-            document.getElementById('headerDate').innerText = now.toLocaleDateString('id-ID', options);
-        }
+function saveDataLocally() {
+    // Simpan ke localStorage (tetap seperti sebelumnya)
+    localStorage.setItem('aplikasi_pos_katalog', JSON.stringify(katalogData));
+    localStorage.setItem('aplikasi_pos_belanja', JSON.stringify(belanjaHistory));
+    localStorage.setItem('aplikasi_pos_penjualan', JSON.stringify(penjualanHistory));
+    localStorage.setItem('aplikasi_pos_pengeluaran', JSON.stringify(pengeluaranHistory));
+    localStorage.setItem('aplikasi_pos_hutang', JSON.stringify(hutangHistory));
+    localStorage.setItem('aplikasi_pos_settings', JSON.stringify(appSettings));
+    
+    // 🔄 TRIGGER AUTO-SYNC KE GOOGLE SHEET
+    triggerAutoSync();
+}
 
-        function formatRupiah(number) {
-            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(number || 0);
-        }
+function triggerAutoSync() {
+    const url = document.getElementById('spreadsheetWebAppUrl')?.value.trim() || webAppUrl;
+    
+    // Jika URL belum di-set, skip
+    if (!url || !url.includes('script.google.com/macros/s/')) return;
+    
+    // Debounce: tunggu 2 detik setelah aktivitas terakhir
+    if (autoSyncTimer) clearTimeout(autoSyncTimer);
+    
+    autoSyncTimer = setTimeout(() => {
+        autoSyncToSheet(url);
+    }, 2000);
+}
 
-        function formatNumberWithDots(val) {
-            val = val.toString().replace(/[^0-9]/g, '');
-            if (!val) return '';
-            return parseInt(val, 10).toLocaleString('id-ID');
-        }
-
-        function parseDotNumber(val) {
-            if (!val) return 0;
-            return parseInt(val.toString().replace(/[^0-9]/g, ''), 10) || 0;
-        }
-
-        function formatNumberInput(inputEl) {
-            const parsed = parseDotNumber(inputEl.value);
-            inputEl.value = parsed ? formatNumberWithDots(parsed) : '';
-        }
+function autoSyncToSheet(url) {
+    const syncBadge = document.getElementById('syncStatusBadge');
+    const badgeText = document.getElementById('syncBadgeText');
+    const originalText = badgeText.innerText;
+    
+    // Update badge status
+    badgeText.innerText = "Syncing...";
+    syncBadge.querySelector('span').classList.remove('bg-emerald-500');
+    syncBadge.querySelector('span').classList.add('bg-amber-500', 'animate-pulse');
+    
+    const payload = {
+        katalogData: katalogData,
+        penjualanHistory: penjualanHistory,
+        belanjaHistory: belanjaHistory,
+        pengeluaranHistory: pengeluaranHistory,
+        hutangHistory: hutangHistory,
+        settings: appSettings,
+        lastBackup: new Date().toISOString()
+    };
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+    fetch(url, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+    })
+    .then(() => {
+        clearTimeout(timeoutId);
+        const time = new Date().toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+        badgeText.innerText = "✓ " + time;
+        syncBadge.querySelector('span').classList.remove('bg-amber-500', 'animate-pulse');
+        syncBadge.querySelector('span').classList.add('bg-emerald-500');
+    })
+    .catch(err => {
+        clearTimeout(timeoutId);
+        console.warn('Auto-sync gagal:', err.message);
+        badgeText.innerText = "✗ Sync error";
+        syncBadge.querySelector('span').classList.remove('bg-amber-500');
+        syncBadge.querySelector('span').classList.add('bg-rose-500');
+        
+        // Reset ke status normal setelah 5 detik
+        setTimeout(() => {
+            badgeText.innerText = originalText;
+            syncBadge.querySelector('span').classList.remove('bg-rose-500');
+            syncBadge.querySelector('span').classList.add('bg-emerald-500');
+        }, 5000);
+    });
+}
 
         // ==================== NAVIGATION ====================
         function navigateTo(viewId) {
@@ -1818,52 +2049,67 @@ function syncSheet(ss, sheetName, headers, dataArray) {
         }
 
         // ==================== SPREADSHEET SYNC ====================
-        function kirimBackupDataKeSpreadsheet(isAuto = false) {
-            const url = document.getElementById('spreadsheetWebAppUrl').value.trim();
-            if (!url) {
-                if (!isAuto) alertModal("Peringatan", "Masukkan URL Google Apps Script Web App terlebih dahulu.");
-                return;
-            }
-            if (!url.includes('script.google.com/macros/s/')) {
-                alertModal("URL Tidak Valid", "URL yang dimasukkan bukan URL Google Apps Script Web App yang valid.");
-                return;
-            }
-            localStorage.setItem('aplikasi_pos_spreadsheet_url', url);
-            const syncBadge = document.getElementById('syncStatusBadge');
-            const originalBadgeText = document.getElementById('syncBadgeText').innerText;
-            if (!isAuto) {
-                document.getElementById('syncBadgeText').innerText = "Mengirim...";
-                syncBadge.classList.add('border-amber-500');
-            }
-            const fullPayload = { katalogData, penjualanHistory, belanjaHistory, pengeluaranHistory, lastBackup: new Date().toISOString() };
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000);
-            fetch(url, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(fullPayload),
-                signal: controller.signal
-            })
-            .then(() => {
-                clearTimeout(timeoutId);
-                if (!isAuto) alertModal("Sukses", "Data berhasil dikirim ke Google Spreadsheet!");
-                document.getElementById('syncBadgeText').innerText = "Sync: " + new Date().toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
-            })
-            .catch(err => {
-                clearTimeout(timeoutId);
-                console.error('Backup error:', err);
-                let errorMsg = "Gagal mengirim data ke Spreadsheet.\n\n";
-                if (err.name === 'AbortError') errorMsg += "Timeout: Request terlalu lama (>30 detik).";
-                else if (err.message.includes('NetworkError')) errorMsg += "Error Jaringan:\n1. Periksa koneksi internet\n2. Pastikan URL Apps Script benar\n3. Pastikan deployment diatur ke 'Anyone'";
-                else errorMsg += err.message;
-                if (!isAuto) alertModal("Error", errorMsg);
-            })
-            .finally(() => {
-                syncBadge.classList.remove('border-amber-500');
-                if (isAuto) document.getElementById('syncBadgeText').innerText = originalBadgeText;
-            });
-        }
+function kirimBackupDataKeSpreadsheet(isAuto = false) {
+    const url = document.getElementById('spreadsheetWebAppUrl').value.trim();
+    if (!url) {
+        if (!isAuto) alertModal("Peringatan", "Masukkan URL Google Apps Script Web App terlebih dahulu.");
+        return;
+    }
+    if (!url.includes('script.google.com/macros/s/')) {
+        alertModal("URL Tidak Valid", "URL bukan URL Apps Script yang valid.");
+        return;
+    }
+    localStorage.setItem('aplikasi_pos_spreadsheet_url', url);
+    webAppUrl = url;
+    
+    const syncBadge = document.getElementById('syncStatusBadge');
+    const originalBadgeText = document.getElementById('syncBadgeText').innerText;
+    
+    if (!isAuto) {
+        document.getElementById('syncBadgeText').innerText = "Mengirim...";
+        syncBadge.classList.add('border-amber-500');
+    }
+    
+    // 📦 PAYLOAD LENGKAP - Semua data dikirim
+    const fullPayload = { 
+        katalogData, 
+        penjualanHistory, 
+        belanjaHistory, 
+        pengeluaranHistory,
+        hutangHistory,
+        settings: appSettings,
+        lastBackup: new Date().toISOString() 
+    };
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    fetch(url, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fullPayload),
+        signal: controller.signal
+    })
+    .then(() => {
+        clearTimeout(timeoutId);
+        if (!isAuto) alertModal("Sukses", "✅ Semua data berhasil disinkronkan ke Google Sheet!");
+        document.getElementById('syncBadgeText').innerText = "✓ " + new Date().toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
+    })
+    .catch(err => {
+        clearTimeout(timeoutId);
+        console.error('Backup error:', err);
+        let errorMsg = "Gagal mengirim data ke Spreadsheet.\n\n";
+        if (err.name === 'AbortError') errorMsg += "Timeout: Request >30 detik.";
+        else if (err.message.includes('NetworkError')) errorMsg += "Error Jaringan:\n1. Periksa internet\n2. URL Apps Script benar\n3. Deployment = 'Anyone'";
+        else errorMsg += err.message;
+        if (!isAuto) alertModal("Error", errorMsg);
+    })
+    .finally(() => {
+        syncBadge.classList.remove('border-amber-500');
+    });
+}
+        
 
         function tarikDataDariSpreadsheet() {
             const url = document.getElementById('spreadsheetWebAppUrl').value.trim();
