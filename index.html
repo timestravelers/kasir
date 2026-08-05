@@ -18,7 +18,7 @@
     <!-- Chart.js for Financial Diagrams -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- HTML5 QR Code Barcode Scanner -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <!-- jsPDF for PDF Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
@@ -897,6 +897,7 @@ function syncSheet(ss, sheetName, headers, dataArray) {
             window.addEventListener('popstate', onPopStateHandle);
             setInterval(checkAutoSyncSchedule, 60000);
 
+          
             // PWA Install Prompt
             window.addEventListener('beforeinstallprompt', (e) => {
                 e.preventDefault();
@@ -909,6 +910,12 @@ function syncSheet(ss, sheetName, headers, dataArray) {
                 document.getElementById('btnInstallPWA').classList.add('hidden');
                 document.getElementById('pwaInstalledMsg').classList.remove('hidden');
             }
+
+              // Cek apakah di HTTPS
+            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            console.warn('⚠️ PERINGATAN: Kamera hanya berfungsi di HTTPS atau localhost!');
+            }
+            
         };
 
         // ==================== LOGIN SYSTEM ====================
@@ -1953,59 +1960,33 @@ function syncSheet(ss, sheetName, headers, dataArray) {
 // let isFlashOn = false;
 
 // ==================== CAMERA SCANNER ====================
-function openCameraScanner(targetInputId) {
-    activeScannerTargetInputId = targetInputId;
-    openModal('modalCameraScanner');
-    
-    // Inisialisasi scanner jika belum ada
-    if (!html5QrScanner) {
-        html5QrScanner = new Html5Qrcode("cameraScannerReader");
-    }
-    
-    // Pencegahan error: Hentikan scanner sebelumnya jika masih berjalan
-    if (html5QrScanner.isScanning) {
-        html5QrScanner.stop().catch(() => {});
-    }
-
-    // Catatan: Ukuran 250x150 bagus untuk barcode horizontal. 
-    // Jika juga memindai QR Code, pertimbangkan { width: 250, height: 250 }
-    const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-    
-    html5QrScanner.start(
-        { facingMode: "environment" }, 
-        config, 
-        (decodedText) => {
-            // Sukses memindai
-            if (activeScannerTargetInputId) {
-                const inputEl = document.getElementById(activeScannerTargetInputId);
-                if (inputEl) {
-                    inputEl.value = decodedText;
-                    if (activeScannerTargetInputId === 'belanjaFormBarcode') onBelanjaBarcodeChange();
-                    if (activeScannerTargetInputId === 'penjualanFormBarcode') onPenjualanBarcodeChange();
-                }
-            }
-            closeCameraScanner();
-        }, 
-        (errorMessage) => {
-            // Biarkan kosong untuk menghindari spam console.log setiap frame yang tidak mendeteksi kode
-        }
-    ).catch(err => {
-        alertModal("Kamera Gagal", "Gagal membuka kamera: " + err);
-        closeCameraScanner();
-    });
-}
+openCameraScanner
 
 function closeCameraScanner() {
-    if (html5QrScanner && html5QrScanner.isScanning) {
-        html5QrScanner.stop().then(() => {
-            closeModal('modalCameraScanner');
-            isFlashOn = false; // Reset state senter saat ditutup
-        }).catch((err) => {
-            console.warn("Gagal menghentikan scanner secara halus:", err);
-            closeModal('modalCameraScanner');
-        });
-    } else { 
-        closeModal('modalCameraScanner'); 
+    if (html5QrScanner) {
+        // Tunggu stop selesai sebelum menutup modal
+        const stopPromise = html5QrScanner.isScanning 
+            ? html5QrScanner.stop() 
+            : Promise.resolve();
+            
+        stopPromise
+            .then(() => {
+                return html5QrScanner.clear();
+            })
+            .then(() => {
+                closeModal('modalCameraScanner');
+                isFlashOn = false;
+            })
+            .catch((err) => {
+                console.warn("Gagal menghentikan scanner:", err);
+                // Force close modal meskipun ada error
+                closeModal('modalCameraScanner');
+                isFlashOn = false;
+                // Reset scanner instance jika bermasalah
+                html5QrScanner = null;
+            });
+    } else {
+        closeModal('modalCameraScanner');
     }
 }
 
