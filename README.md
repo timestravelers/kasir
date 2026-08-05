@@ -1,144 +1,47 @@
-# 🛒 APLIKASI POS - Point of Sale System
+# 🏪 APLIKASI POS — Point of Sale System
 
-<div align="center">
+Aplikasi kasir lengkap berbasis web (single-file HTML) dengan fitur manajemen stok, penjualan, pembelian, hutang/piutang, laporan keuangan, hingga sinkronisasi otomatis ke **Google Spreadsheet**. Siap di-install sebagai aplikasi (PWA) di HP Android/iOS.
 
-![Version](https://img.shields.io/badge/version-2.0.0-amber?style=for-the-badge)
-![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
-![PWA](https://img.shields.io/badge/PWA-Ready-blue?style=for-the-badge)
-![Deploy](https://img.shields.io/badge/deploy-Vercel-black?style=for-the-badge)
-
-**Sistem Kasir Modern untuk Toko Grosir & Retail**
-
-<a href="https://www.buymeacoffee.com/rakasyailendra"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=rakasyailendra&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
-
-[🚀 Live Demo](https://kasir-smoky-gamma.vercel.app) • [📖 Dokumentasi](#-dokumentasi) • [💬 WhatsApp](https://wa.me/6287888879016)
-
-</div>
+> 💾 **LocalStorage-first** — aplikasi tetap cepat & bisa dipakai offline, lalu otomatis backup ke Google Sheet di background.
 
 ---
 
-## 📋 Daftar Isi
+## ✨ Fitur Utama
 
-- [Tentang Aplikasi](#-tentang-aplikasi)
-- [Fitur Utama](#-fitur-utama)
-- [Teknologi](#-teknologi)
-- [Screenshot](#-screenshot)
-- [Instalasi Lokal](#-instalasi-lokal)
-- [Deploy ke Vercel](#-deploy-ke-vercel)
-- [Setup Google Apps Script](#-setup-google-apps-script)
-- [Panduan Penggunaan](#-panduan-penggunaan)
-- [Struktur Aplikasi](#-struktur-aplikasi)
-- [Roadmap](#-roadmap)
-- [Kontribusi](#-kontribusi)
-- [Lisensi](#-lisensi)
-- [Kontak](#-kontak)
-
----
-
-## 🎯 Tentang Aplikasi
-
-**APLIKASI POS** adalah sistem Point of Sale (Kasir) berbasis web yang dirancang khusus untuk toko grosir dan retail di Indonesia. Aplikasi ini dibangun sebagai **Single Page Application (SPA)** dalam satu file HTML yang ringan, mudah di-deploy, dan siap digunakan.
-
-### ✨ Keunggulan
-
-- 🚀 **Ringan & Cepat** - Hanya 1 file HTML, tanpa build tools
-- 📱 **PWA Ready** - Bisa di-install seperti aplikasi native di HP
-- 🔐 **Multi-User** - Sistem login dengan PIN untuk keamanan
-- 📊 **Laporan Lengkap** - Export PDF untuk akuntansi
-- ☁️ **Cloud Sync** - Sinkronisasi dengan Google Spreadsheet
-- 📷 **Barcode Scanner** - Scan barcode langsung dari kamera HP
-- 💰 **Manajemen Hutang** - Fitur khusus untuk toko grosir
-- 🌙 **Dark Mode** - Tampilan modern yang nyaman di mata
-
----
-
-## ⭐ Fitur Utama
-
-### 🔐 Keamanan & Akses
-- [x] Login system dengan PIN 4 digit
-- [x] Logout & session management
-- [x] Pengaturan PIN custom
-
-### 🛒 Manajemen Penjualan
-- [x] Kasir dengan mode Retail & Grosir
-- [x] Autocomplete nama barang
-- [x] Perhitungan kembalian otomatis
-- [x] Cetak faktur PDF dengan watermark "LUNAS"
-- [x] Riwayat transaksi lengkap
-
-### 📦 Manajemen Stok
-- [x] Katalog barang dengan barcode
-- [x] Scan barcode via kamera HP
-- [x] Peringatan stok minimum
-- [x] Input belanja/kulakan otomatis tambah stok
-- [x] Pencarian barang real-time
-
-### 💸 Keuangan
-- [x] Pencatatan pengeluaran operasional
-- [x] Perhitungan laba kotor & bersih
-- [x] Grafik keuntungan bulanan (Chart.js)
-- [x] Laporan hari ini, kemarin, & bulan ini
-
-### 📒 Hutang & Piutang
-- [x] Pencatatan hutang pelanggan
-- [x] Pembayaran partial/full
-- [x] Notifikasi jatuh tempo
-- [x] Total outstanding display
-
-### 📊 Laporan & Export
-- [x] Filter laporan berdasarkan tanggal
-- [x] Export laporan penjualan ke PDF
-- [x] Export laporan stok ke PDF
-- [x] Siap untuk akuntan
-
-### ☁️ Sinkronisasi Cloud
-- [x] Backup data ke Google Spreadsheet
-- [x] Restore data dari Spreadsheet
-- [x] Auto-sync setiap jam 23:00
-- [x] 4 sheet terpisah (Katalog, Penjualan, Belanja, Pengeluaran)
-
-### 📱 Progressive Web App
-- [x] Installable di Android & iOS
-- [x] Offline support
-- [x] Service Worker
-- [x] Splash screen & icon
+| Modul | Keterangan |
+|---|---|
+| 🔐 **Login PIN** | Keamanan akses dengan PIN 4 digit (default: `1234`) |
+| 📦 **Katalog Stok** | CRUD barang, barcode, harga pokok/grosir/retail, peringatan stok minimum |
+| 🛒 **Belanja Barang** | Input pembelian supplier → otomatis menambah stok |
+| 💵 **Penjualan (Kasir)** | Transaksi retail/grosir, keranjang, hitung kembalian, potong stok otomatis |
+| 💸 **Pengeluaran Lain** | Catat pengeluaran operasional (PLN, bensin, dll) |
+| 📋 **Hutang/Piutang** | Catat hutang pelanggan, cicilan pembayaran, jatuh tempo & status LUNAS |
+| 📊 **Laporan Keuntungan** | Laba harian/bulanan + grafik Chart.js per bulan |
+| 📄 **Export PDF** | Laporan penjualan, laporan stok, dan faktur penjualan (watermark LUNAS) |
+| 📷 **Scan Barcode** | Kamera HP via library `html5-qrcode` (EAN-13, CODE-128, QR, dll) + tombol flash |
+| ☁️ **Auto-Sync Google Sheet** | Sinkron otomatis setiap perubahan (throttle 60 detik) + backup penuh jam 23:00 |
+| 📱 **PWA Ready** | Install ke layar utama HP seperti aplikasi native |
 
 ---
 
 ## 🛠️ Teknologi
 
-| Kategori | Teknologi |
-|----------|-----------|
-| **Frontend** | HTML5, Tailwind CSS, Vanilla JavaScript |
-| **Icons** | FontAwesome 6.4 |
-| **Charts** | Chart.js |
-| **PDF Export** | jsPDF + AutoTable |
-| **Barcode Scanner** | html5-qrcode |
-| **Database** | LocalStorage + Google Apps Script |
-| **Hosting** | Vercel (Recommended) |
+| Library | Versi | Fungsi |
+|---|---|---|
+| Tailwind CSS | CDN | Styling |
+| Font Awesome | 6.4.0 | Ikon |
+| Chart.js | latest | Grafik keuntungan |
+| html5-qrcode | 2.3.8 | Scanner barcode/QR |
+| jsPDF + autotable | 2.5.1 | Export PDF |
+| Google Apps Script | Web App | Backend Google Spreadsheet |
+
+**Storage:** `localStorage` browser (6 key: katalog, belanja, penjualan, pengeluaran, hutang, settings)
 
 ---
 
-## 📸 Screenshot
+## 🚀 Cara Install & Menjalankan
 
-<div align="center">
+### Opsi 1 — Langsung (Desktop)
+Buka file `index.html` di browser (Chrome/Edge/Firefox). Login dengan PIN **1234**.
 
-| Login Screen | Main Menu | Kasir Penjualan |
-|:---:|:---:|:---:|
-| ![Login](https://placehold.co/300x600/18181b/fbbf24?text=Login+Screen) | ![Menu](https://placehold.co/300x600/18181b/fbbf24?text=Main+Menu) | ![Kasir](https://placehold.co/300x600/18181b/fbbf24?text=Kasir) |
-
-| Laporan Keuntungan | Hutang Pelanggan | Settings |
-|:---:|:---:|:---:|
-| ![Laporan](https://placehold.co/300x600/18181b/fbbf24?text=Laporan) | ![Hutang](https://placehold.co/300x600/18181b/fbbf24?text=Hutang) | ![Settings](https://placehold.co/300x600/18181b/fbbf24?text=Settings) |
-
-</div>
-
----
-
-## 📥 Instalasi Lokal
-
-### Prasyarat
-- Browser modern (Chrome/Edge/Firefox/Safari)
-- Koneksi internet (untuk CDN libraries)
-- **HTTPS** diperlukan untuk fitur kamera scanner
-
+### Opsi 2 — Local Server (untuk test kamera di HP)
