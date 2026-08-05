@@ -256,29 +256,3 @@ function logSync(ss, startTime, status, details) {
   if (sheet.getLastRow() > 101) sheet.deleteRow(2);
 }
 
-┌─────────────────────────────────────────────┐
-│              AKSI PENGGUNA                  │
-│   (tambah barang, transaksi, bayar hutang)  │
-└──────────────────┬──────────────────────────┘
-                   ▼
-        ┌─────────────────────┐
-        │  saveDataLocally()  │ ← instan, tidak blocking
-        │   (localStorage)    │
-        └──────────┬──────────┘
-                   ▼
-      ┌────────────────────────────┐
-      │   scheduleCloudSync()      │ ← throttle 60 detik
-      └────────────┬───────────────┘
-                   ▼
-        ┌──────────────────────┐
-        │ requestIdleCallback  │ ← jalan saat browser idle
-        └──────────┬───────────┘
-                   ▼
-       ┌───────────────────────┐
-       │  executeCloudSync()   │ ← fetch background (keepalive)
-       └──────────┬────────────┘
-                  ▼
-        ┌─────────────────────┐
-        │   GOOGLE SHEET      │
-        │ (Apps Script WebApp)│
-        └─────────────────────┘
