@@ -1180,44 +1180,67 @@ function logSync(ss, startTime, status, details) {
         }
 
 // ==================== UTILITY FUNCTIONS ====================
-let autoSyncTimer = null;
+let lastSyncTime = 0;
+let syncQueue = [];
+let isSyncing = false;
+const SYNC_THROTTLE_MS = 60000; // Minimal 60 detik antar sync
 
 function saveDataLocally() {
-    // Simpan ke localStorage (tetap seperti sebelumnya)
-    localStorage.setItem('aplikasi_pos_katalog', JSON.stringify(katalogData));
-    localStorage.setItem('aplikasi_pos_belanja', JSON.stringify(belanjaHistory));
-    localStorage.setItem('aplikasi_pos_penjualan', JSON.stringify(penjualanHistory));
-    localStorage.setItem('aplikasi_pos_pengeluaran', JSON.stringify(pengeluaranHistory));
-    localStorage.setItem('aplikasi_pos_hutang', JSON.stringify(hutangHistory));
-    localStorage.setItem('aplikasi_pos_settings', JSON.stringify(appSettings));
+    // HANYA ke localStorage - CEPAT, tidak blocking
+    try {
+        localStorage.setItem('aplikasi_pos_katalog', JSON.stringify(katalogData));
+        localStorage.setItem('aplikasi_pos_belanja', JSON.stringify(belanjaHistory));
+        localStorage.setItem('aplikasi_pos_penjualan', JSON.stringify(penjualanHistory));
+        localStorage.setItem('aplikasi_pos_pengeluaran', JSON.stringify(pengeluaranHistory));
+        localStorage.setItem('aplikasi_pos_hutang', JSON.stringify(hutangHistory));
+        localStorage.setItem('aplikasi_pos_settings', JSON.stringify(appSettings));
+    } catch (e) {
+        console.warn('LocalStorage error:', e);
+    }
     
-    // 🔄 TRIGGER AUTO-SYNC KE GOOGLE SHEET
-    triggerAutoSync();
+    // Queue sync untuk diproses nanti (non-blocking)
+    scheduleCloudSync();
 }
 
-function triggerAutoSync() {
+function scheduleCloudSync(immediate = false) {
     const url = document.getElementById('spreadsheetWebAppUrl')?.value.trim() || webAppUrl;
     
-    // Jika URL belum di-set, skip
+    // Skip jika URL belum valid
     if (!url || !url.includes('script.google.com/macros/s/')) return;
     
-    // Debounce: tunggu 2 detik setelah aktivitas terakhir
-    if (autoSyncTimer) clearTimeout(autoSyncTimer);
+    const now = Date.now();
+    const timeSinceLastSync = now - lastSyncTime;
     
-    autoSyncTimer = setTimeout(() => {
-        autoSyncToSheet(url);
-    }, 2000);
+    // Jika belum 60 detik sejak sync terakhir dan bukan immediate, skip
+    if (!immediate && timeSinceLastSync < SYNC_THROTTLE_MS) {
+        // Jadwalkan sync sisa waktu
+        const delay = SYNC_THROTTLE_MS - timeSinceLastSync;
+        setTimeout(() => scheduleCloudSync(false), delay);
+        return;
+    }
+    
+    // Gunakan requestIdleCallback jika tersedia (sync di waktu idle)
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => executeCloudSync(url), { timeout: 5000 });
+    } else {
+        setTimeout(() => executeCloudSync(url), 1000);
+    }
 }
 
-function autoSyncToSheet(url) {
+function executeCloudSync(url) {
+    if (isSyncing) return; // Prevent concurrent syncs
+    
+    isSyncing = true;
     const syncBadge = document.getElementById('syncStatusBadge');
     const badgeText = document.getElementById('syncBadgeText');
-    const originalText = badgeText.innerText;
+    const dotEl = syncBadge?.querySelector('span.w-2');
     
-    // Update badge status
-    badgeText.innerText = "Syncing...";
-    syncBadge.querySelector('span').classList.remove('bg-emerald-500');
-    syncBadge.querySelector('span').classList.add('bg-amber-500', 'animate-pulse');
+    // Update UI
+    if (badgeText) badgeText.innerText = "Syncing...";
+    if (dotEl) {
+        dotEl.classList.remove('bg-emerald-500', 'bg-rose-500');
+        dotEl.classList.add('bg-amber-500', 'animate-pulse');
+    }
     
     const payload = {
         katalogData: katalogData,
@@ -1230,38 +1253,41 @@ function autoSyncToSheet(url) {
     };
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
     
     fetch(url, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        signal: controller.signal
+        signal: controller.signal,
+        keepalive: true // Request tetap jalan meski halaman ditutup
     })
     .then(() => {
         clearTimeout(timeoutId);
-        const time = new Date().toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
-        badgeText.innerText = "✓ " + time;
-        syncBadge.querySelector('span').classList.remove('bg-amber-500', 'animate-pulse');
-        syncBadge.querySelector('span').classList.add('bg-emerald-500');
+        lastSyncTime = Date.now();
+        const time = new Date().toLocaleTimeString('id-ID', {
+            hour: '2-digit', minute: '2-digit'
+        });
+        if (badgeText) badgeText.innerText = "✓ " + time;
+        if (dotEl) {
+            dotEl.classList.remove('bg-amber-500', 'animate-pulse', 'bg-rose-500');
+            dotEl.classList.add('bg-emerald-500');
+        }
     })
     .catch(err => {
         clearTimeout(timeoutId);
-        console.warn('Auto-sync gagal:', err.message);
-        badgeText.innerText = "✗ Sync error";
-        syncBadge.querySelector('span').classList.remove('bg-amber-500');
-        syncBadge.querySelector('span').classList.add('bg-rose-500');
-        
-        // Reset ke status normal setelah 5 detik
-        setTimeout(() => {
-            badgeText.innerText = originalText;
-            syncBadge.querySelector('span').classList.remove('bg-rose-500');
-            syncBadge.querySelector('span').classList.add('bg-emerald-500');
-        }, 5000);
+        console.warn('Cloud sync gagal:', err.name);
+        if (badgeText) badgeText.innerText = "⚠ Offline";
+        if (dotEl) {
+            dotEl.classList.remove('bg-amber-500', 'animate-pulse');
+            dotEl.classList.add('bg-rose-500');
+        }
+    })
+    .finally(() => {
+        isSyncing = false;
     });
 }
-
         // ==================== NAVIGATION ====================
         function navigateTo(viewId) {
             const currentView = navigationHistory[navigationHistory.length - 1];
@@ -1326,40 +1352,56 @@ function autoSyncToSheet(url) {
         }
 
         // ==================== KATALOG MODULE ====================
-        function renderKatalogList() {
-            const container = document.getElementById('katalogContainer');
-            const search = document.getElementById('katalogSearchInput').value.toLowerCase();
-            container.innerHTML = '';
-            const filtered = katalogData.filter(item => 
-                item.nama.toLowerCase().includes(search) || (item.barcode && item.barcode.toLowerCase().includes(search))
-            );
-            if (filtered.length === 0) {
-                container.innerHTML = `<div class="text-center py-10 text-zinc-500 text-xs">Barang tidak ditemukan</div>`;
-                return;
-            }
-            filtered.forEach(item => {
-                const card = document.createElement('div');
-                card.className = "bg-zinc-900 hover:bg-zinc-800/80 border border-zinc-800 p-3 rounded-2xl flex justify-between items-center cursor-pointer shadow transition active:scale-[0.98]";
-                card.onclick = () => openEditKatalogModal(item.id);
-                card.innerHTML = `
-                    <div class="flex-1 pr-2">
-                        <div class="text-[10px] text-amber-400 font-mono font-bold">${item.barcode || '-'}</div>
-                        <div class="text-sm font-black text-slate-100 leading-tight uppercase">${item.nama}</div>
-                        <div class="text-[11px] text-zinc-400 mt-1">
-                            Pokok: ${formatRupiah(item.hargaPokok)} | Grosir: <span class="text-amber-400 font-semibold">${formatRupiah(item.hargaGrosir)}</span> | Retail: <span class="text-emerald-400 font-semibold">${formatRupiah(item.hargaRetail)}</span>
-                        </div>
-                    </div>
-                    <div class="text-right shrink-0 bg-zinc-950/80 px-3 py-2 rounded-xl border border-zinc-800">
-                        <div class="text-[9px] text-zinc-400">STOK</div>
-                        <div class="text-lg font-black ${item.stok <= item.minStok ? 'text-rose-400 animate-pulse' : 'text-amber-400'}">
-                            ${item.stok} <span class="text-[10px] font-normal text-zinc-400">${item.satuan}</span>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
-        }
+let katalogRenderTimer = null;
 
+function renderKatalogList() {
+    // Debounce: tunggu user selesai mengetik
+    if (katalogRenderTimer) clearTimeout(katalogRenderTimer);
+    
+    katalogRenderTimer = setTimeout(() => {
+        const container = document.getElementById('katalogContainer');
+        const search = document.getElementById('katalogSearchInput').value.toLowerCase();
+        
+        // Gunakan DocumentFragment untuk performa
+        const fragment = document.createDocumentFragment();
+        
+        const filtered = katalogData.filter(item => 
+            item.nama.toLowerCase().includes(search) || 
+            (item.barcode && item.barcode.toLowerCase().includes(search))
+        );
+        
+        if (filtered.length === 0) {
+            container.innerHTML = `<div class="text-center py-10 text-zinc-500 text-xs">Barang tidak ditemukan</div>`;
+            return;
+        }
+        
+        filtered.forEach(item => {
+            const card = document.createElement('div');
+            card.className = "bg-zinc-900 hover:bg-zinc-800/80 border border-zinc-800 p-3 rounded-2xl flex justify-between items-center cursor-pointer shadow transition active:scale-[0.98]";
+            card.onclick = () => openEditKatalogModal(item.id);
+            card.innerHTML = `
+                <div class="flex-1 pr-2">
+                    <div class="text-[10px] text-amber-400 font-mono font-bold">${item.barcode || '-'}</div>
+                    <div class="text-sm font-black text-slate-100 leading-tight uppercase">${item.nama}</div>
+                    <div class="text-[11px] text-zinc-400 mt-1">
+                        Pokok: ${formatRupiah(item.hargaPokok)} | Grosir: <span class="text-amber-400">${formatRupiah(item.hargaGrosir)}</span> | Retail: <span class="text-emerald-400">${formatRupiah(item.hargaRetail)}</span>
+                    </div>
+                </div>
+                <div class="text-right shrink-0 bg-zinc-950/80 px-3 py-2 rounded-xl border border-zinc-800">
+                    <div class="text-[9px] text-zinc-400">STOK</div>
+                    <div class="text-lg font-black ${item.stok <= item.minStok ? 'text-rose-400 animate-pulse' : 'text-amber-400'}">
+                        ${item.stok} <span class="text-[10px] font-normal text-zinc-400">${item.satuan}</span>
+                    </div>
+                </div>
+            `;
+            fragment.appendChild(card);
+        });
+        
+        container.innerHTML = '';
+        container.appendChild(fragment);
+    }, 150); // 150ms debounce
+}
+        
         function openEditKatalogModal(id) {
             const item = katalogData.find(x => x.id === id);
             if (!item) return;
@@ -2052,91 +2094,81 @@ function autoSyncToSheet(url) {
 function kirimBackupDataKeSpreadsheet(isAuto = false) {
     const url = document.getElementById('spreadsheetWebAppUrl').value.trim();
     if (!url) {
-        if (!isAuto) alertModal("Peringatan", "Masukkan URL Google Apps Script Web App terlebih dahulu.");
+        if (!isAuto) alertModal("Peringatan", "Masukkan URL Apps Script terlebih dahulu.");
         return;
     }
     if (!url.includes('script.google.com/macros/s/')) {
-        alertModal("URL Tidak Valid", "URL bukan URL Apps Script yang valid.");
+        alertModal("URL Tidak Valid", "URL bukan Apps Script yang valid.");
         return;
     }
+    
     localStorage.setItem('aplikasi_pos_spreadsheet_url', url);
     webAppUrl = url;
     
-    const syncBadge = document.getElementById('syncStatusBadge');
-    const originalBadgeText = document.getElementById('syncBadgeText').innerText;
+    // Force immediate sync (skip throttle)
+    lastSyncTime = 0; // Reset throttle
+    executeCloudSync(url);
     
     if (!isAuto) {
-        document.getElementById('syncBadgeText').innerText = "Mengirim...";
-        syncBadge.classList.add('border-amber-500');
+        setTimeout(() => {
+            alertModal("Info", "🔄 Sinkronisasi dimulai di background.\nLihat status badge di header untuk hasil.");
+        }, 300);
     }
-    
-    // 📦 PAYLOAD LENGKAP - Semua data dikirim
-    const fullPayload = { 
-        katalogData, 
-        penjualanHistory, 
-        belanjaHistory, 
-        pengeluaranHistory,
-        hutangHistory,
-        settings: appSettings,
-        lastBackup: new Date().toISOString() 
-    };
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    
-    fetch(url, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(fullPayload),
-        signal: controller.signal
-    })
-    .then(() => {
-        clearTimeout(timeoutId);
-        if (!isAuto) alertModal("Sukses", "✅ Semua data berhasil disinkronkan ke Google Sheet!");
-        document.getElementById('syncBadgeText').innerText = "✓ " + new Date().toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
-    })
-    .catch(err => {
-        clearTimeout(timeoutId);
-        console.error('Backup error:', err);
-        let errorMsg = "Gagal mengirim data ke Spreadsheet.\n\n";
-        if (err.name === 'AbortError') errorMsg += "Timeout: Request >30 detik.";
-        else if (err.message.includes('NetworkError')) errorMsg += "Error Jaringan:\n1. Periksa internet\n2. URL Apps Script benar\n3. Deployment = 'Anyone'";
-        else errorMsg += err.message;
-        if (!isAuto) alertModal("Error", errorMsg);
-    })
-    .finally(() => {
-        syncBadge.classList.remove('border-amber-500');
-    });
 }
         
 
-        function tarikDataDariSpreadsheet() {
-            const url = document.getElementById('spreadsheetWebAppUrl').value.trim();
-            if (!url) { alertModal("Peringatan", "Masukkan URL Google Apps Script Web App."); return; }
-            document.getElementById('syncBadgeText').innerText = "Menarik Data...";
-            fetch(url)
-            .then(res => res.json())
-            .then(data => {
-                if (data && data.katalogData) {
-                    katalogData = data.katalogData;
-                    penjualanHistory = data.penjualanHistory || [];
-                    belanjaHistory = data.belanjaHistory || [];
-                    pengeluaranHistory = data.pengeluaranHistory || [];
-                    saveDataLocally();
-                    renderKatalogList();
-                    renderBelanjaHistory();
-                    renderPenjualanHistory();
-                    renderPengeluaranList();
-                    renderKeuntunganData();
-                    alertModal("Sukses", "Data berhasil ditarik dan disingkronkan dari Spreadsheet!");
-                } else {
-                    alertModal("Info", "Data di Spreadsheet masih kosong.");
-                }
-            })
-            .catch(err => { alertModal("Error", "Gagal menarik data. Pastikan URL benar dan deployment diatur ke 'Siapa saja'."); })
-            .finally(() => { document.getElementById('syncBadgeText').innerText = "Siap"; });
+function tarikDataDariSpreadsheet() {
+    const url = document.getElementById('spreadsheetWebAppUrl').value.trim();
+    if (!url) { 
+        alertModal("Peringatan", "Masukkan URL Apps Script."); 
+        return; 
+    }
+    
+    const badgeText = document.getElementById('syncBadgeText');
+    if (badgeText) badgeText.innerText = "Menarik Data...";
+    
+    fetch(url)
+    .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+    })
+    .then(data => {
+        if (data && data.katalogData) {
+            katalogData = data.katalogData || [];
+            penjualanHistory = data.penjualanHistory || [];
+            belanjaHistory = data.belanjaHistory || [];
+            pengeluaranHistory = data.pengeluaranHistory || [];
+            hutangHistory = data.hutangHistory || [];
+            
+            // ⚠️ PENTING: Simpan ke localStorage TANPA trigger sync
+            try {
+                localStorage.setItem('aplikasi_pos_katalog', JSON.stringify(katalogData));
+                localStorage.setItem('aplikasi_pos_belanja', JSON.stringify(belanjaHistory));
+                localStorage.setItem('aplikasi_pos_penjualan', JSON.stringify(penjualanHistory));
+                localStorage.setItem('aplikasi_pos_pengeluaran', JSON.stringify(pengeluaranHistory));
+                localStorage.setItem('aplikasi_pos_hutang', JSON.stringify(hutangHistory));
+            } catch(e) { console.warn('LS error:', e); }
+            
+            // Render UI (prioritas)
+            renderKatalogList();
+            renderBelanjaHistory();
+            renderPenjualanHistory();
+            renderPengeluaranList();
+            renderHutangList();
+            renderKeuntunganData();
+            
+            alertModal("Sukses", "✅ Data berhasil ditarik dari Spreadsheet!");
+        } else {
+            alertModal("Info", "Data di Spreadsheet masih kosong.");
         }
+    })
+    .catch(err => { 
+        alertModal("Error", "Gagal menarik data: " + err.message + "\n\nPastikan URL benar & deployment = 'Anyone'"); 
+    })
+    .finally(() => { 
+        if (badgeText) badgeText.innerText = "Siap"; 
+    });
+}
 
         function checkAutoSyncSchedule() {
             const now = new Date();
