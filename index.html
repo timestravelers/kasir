@@ -1960,29 +1960,108 @@ function syncSheet(ss, sheetName, headers, dataArray) {
 // let isFlashOn = false;
 
 // ==================== CAMERA SCANNER ====================
-openCameraScanner
+// ==================== CAMERA SCANNER ====================
+function openCameraScanner(targetInputId) {
+    activeScannerTargetInputId = targetInputId;
+    openModal('modalCameraScanner');
+    
+    // ⏱️ Tunggu modal benar-benar dirender (PENTING!)
+    setTimeout(() => {
+        // Inisialisasi scanner jika belum ada
+        if (!html5QrScanner) {
+            html5QrScanner = new Html5Qrcode("cameraScannerReader");
+        }
+        
+        // Konfigurasi scanner yang lebih baik
+        const config = {
+            fps: 10,
+            qrbox: { width: 300, height: 200 },
+            aspectRatio: 1.7778,
+            formatsToSupport: [
+                Html5QrcodeSupportedFormats.QR_CODE,
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.CODE_93,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.UPC_E
+            ]
+        };
+        
+        // Jika scanner masih berjalan, hentikan dulu lalu tunggu
+        if (html5QrScanner.isScanning) {
+            html5QrScanner.stop()
+                .then(() => startScanning(config))
+                .catch(() => setTimeout(() => startScanning(config), 500));
+        } else {
+            startScanning(config);
+        }
+    }, 300); // Delay 300ms untuk memastikan modal siap
+}
+
+// Fungsi helper terpisah untuk start scanning
+function startScanning(config) {
+    if (!html5QrScanner) {
+        html5QrScanner = new Html5Qrcode("cameraScannerReader");
+    }
+    
+    html5QrScanner.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText) => {
+            // Sukses memindai
+            if (activeScannerTargetInputId) {
+                const inputEl = document.getElementById(activeScannerTargetInputId);
+                if (inputEl) {
+                    inputEl.value = decodedText;
+                    // Trigger event yang sesuai
+                    if (activeScannerTargetInputId === 'belanjaFormBarcode') onBelanjaBarcodeChange();
+                    if (activeScannerTargetInputId === 'penjualanFormBarcode') onPenjualanBarcodeChange();
+                }
+            }
+            closeCameraScanner();
+        },
+        (errorMessage) => {
+            // Error setiap frame - biarkan kosong untuk menghindari spam console
+        }
+    ).catch(err => {
+        console.error('Camera error:', err);
+        let errorMsg = "Gagal membuka kamera.";
+        
+        if (err.name === 'NotAllowedError') {
+            errorMsg = "⛔ Izin kamera ditolak.\nSilakan izinkan akses kamera di pengaturan browser.";
+        } else if (err.name === 'NotFoundError') {
+            errorMsg = "📷 Kamera tidak ditemukan di perangkat ini.";
+        } else if (err.name === 'NotReadableError') {
+            errorMsg = "🔒 Kamera sedang digunakan oleh aplikasi lain.";
+        } else if (!window.isSecureContext) {
+            errorMsg = "🔐 Kamera HANYA berfungsi di HTTPS atau localhost!\n\nAplikasi Anda saat ini berjalan di: " + window.location.protocol;
+        } else {
+            errorMsg += "\n\nDetail: " + err.toString();
+        }
+        
+        alertModal("Kamera Gagal", errorMsg);
+        closeCameraScanner();
+    });
+}
 
 function closeCameraScanner() {
     if (html5QrScanner) {
-        // Tunggu stop selesai sebelum menutup modal
         const stopPromise = html5QrScanner.isScanning 
             ? html5QrScanner.stop() 
             : Promise.resolve();
             
         stopPromise
-            .then(() => {
-                return html5QrScanner.clear();
-            })
+            .then(() => html5QrScanner.clear())
             .then(() => {
                 closeModal('modalCameraScanner');
                 isFlashOn = false;
             })
             .catch((err) => {
                 console.warn("Gagal menghentikan scanner:", err);
-                // Force close modal meskipun ada error
                 closeModal('modalCameraScanner');
                 isFlashOn = false;
-                // Reset scanner instance jika bermasalah
                 html5QrScanner = null;
             });
     } else {
@@ -1995,26 +2074,22 @@ function toggleCameraFlashlight() {
 
     isFlashOn = !isFlashOn;
 
-    // Metode 1: Menggunakan API capabilities (Disarankan untuk html5-qrcode v2.3.8+)
     try {
         const capabilities = html5QrScanner.getRunningTrackCameraCapabilities();
         if (capabilities && capabilities.torchFeature()) {
             capabilities.torchFeature().apply(isFlashOn);
-            return; // Berhasil, keluar dari fungsi
+            return;
         }
     } catch (e) {
-        // Fallback ke metode lama jika API capabilities tidak tersedia (versi library lama)
+        // Fallback ke metode lama
     }
 
-    // Metode 2: Fallback menggunakan applyVideoConstraints
-    // Penting: Properti 'torch' harus ada di level akar DAN di dalam 'advanced' untuk kompatibilitas maksimal [[15]]
     const constraints = {
         torch: isFlashOn,
         advanced: [{ torch: isFlashOn }]
     };
 
     html5QrScanner.applyVideoConstraints(constraints).catch(() => {
-        // Jika gagal, kembalikan status isFlashOn dan tampilkan pesan
         isFlashOn = !isFlashOn; 
         alertModal("Senter", "Lampu flash tidak didukung oleh perangkat atau browser ini.");
     });
