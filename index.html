@@ -489,6 +489,34 @@ html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; }
 // Event Delegation, Background Sync, Keyboard Shortcuts
 // ============================================================
 
+// ==== DIAGNOSTIC WATCHDOG: menampilkan error langsung di layar ====
+window.__POS_BOOTED = false;
+window.__POS_PARSED = false;
+window.__posShowError = function (msg) {
+    var o = document.getElementById('loadingOverlay');
+    var t = document.getElementById('loadingText');
+    if (o && t) {
+        o.style.display = 'flex';
+        t.innerHTML = '<span style="color:#f87171;font-weight:bold">ERROR:</span> ' + msg +
+                      '<br><span style="color:#a1a1aa">Tekan F12 > Console untuk detail</span>';
+    }
+};
+window.addEventListener('error', function (e) {
+    window.__posShowError((e.message || 'Script error') + ' (baris ' + (e.lineno || '?') + ')');
+});
+window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason;
+    window.__posShowError('Async: ' + (r && r.message ? r.message : r));
+});
+setTimeout(function () {
+    if (!window.__POS_PARSED) {
+        window.__posShowError('Script utama gagal diparsing. Salin ulang file dengan benar / hard refresh (Ctrl+F5).');
+    } else if (!window.__POS_BOOTED) {
+        window.__posShowError('Boot menggantung. Buka Console (F12) lalu kirim screenshot error-nya.');
+    }
+}, 12000);
+
+    
 'use strict';
 
 const APP = (() => {
