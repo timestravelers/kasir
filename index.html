@@ -5,30 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>APLIKASI POS - Enterprise Edition</title>
 
-<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiQVBMSUtBU0kgUE9TIiwic2hvcnRfbmFtZSI6IlBPUyIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjMDUwNTA1IiwidGhlbWVfY29sb3IiOiIjZjU5ZTBiIiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vcGxhY2Vob2xkLmNvLzE5MngxOTIvMDAwMDAwL2ZiYmYyND90ZXh0PVBPUyIsInNpemVzIjoiMTkyeDE5MiIsInR5cGUiOiJpbWFnZS9wbmcifV19">
-<meta name="theme-color" content="#f59e0b">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💰</text></svg>">
 
-<!-- 1. Penangkal Warning Tailwind (Letakkan PALING ATAS di dalam <head>) -->
 <script>
-    (function() {
-        const __originalWarn = console.warn;
-        console.warn = function(...args) {
-            // Filter dan sembunyikan warning spesifik dari Tailwind CDN
-            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) return;
-            __originalWarn.apply(console, args);
-        };
-    })();
+(function() {
+    const __originalWarn = console.warn;
+    console.warn = function(...args) {
+        if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) return;
+        __originalWarn.apply(console, args);
+    };
+})();
 </script>
 
-<!-- 2. Tailwind CSS (Akan berjalan tanpa memunculkan warning) -->
 <script src="https://cdn.tailwindcss.com"></script>
-
-<!-- 3. Font Awesome versi terbaru (Fix Firefox Glyph Bbox) -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -123,7 +113,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; }
 </div>
 <div id="loginError" class="hidden text-center text-rose-400 text-xs mt-3"><i class="fa-solid fa-circle-xmark"></i> PIN salah! Coba lagi.</div>
 <div class="text-center mt-4 pt-4 border-t border-zinc-800">
-<p class="text-[10px] text-zinc-500">Default PIN: <span class="text-amber-400 font-bold">1234</span> <span class="text-zinc-600">(SHA-256 secured)</span></p>
+<p class="text-[10px] text-zinc-500">Default PIN: <span class="text-amber-400 font-bold">1234</span></p>
 </div>
 </div>
 </div>
@@ -155,7 +145,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; }
 <section id="viewHome" class="w-full h-full p-3 sm:p-5 flex flex-col justify-between overflow-y-auto no-scrollbar">
 <div class="flex flex-col items-center justify-center py-2">
 <div class="relative max-w-[200px] sm:max-w-[240px] flex items-center justify-center p-2 rounded-2xl bg-zinc-900/60 border border-amber-500/30 shadow-2xl backdrop-blur-md">
-<img src="logoweb.png" alt="Logo" class="h-20 sm:h-24 object-contain">
+<img src="logoweb.png" alt="Logo" class="h-20 sm:h-24 object-contain" onerror="this.style.display='none'">
 </div>
 <div class="mt-2 text-xs text-zinc-400">Login sebagai: <span id="currentUserDisplay" class="text-amber-400 font-bold">-</span></div>
 </div>
@@ -195,7 +185,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; }
 </button>
 </div>
 <div class="text-center text-[11px] text-zinc-500 py-2">
-    APLIKASI POS • Enterprise v2.0 • IndexedDB • SHA-256 Secured • PWA Ready
+    APLIKASI POS • Enterprise v2.1 • IndexedDB • SHA-256 Secured • PWA Ready
 </div>
 </section>
 
@@ -500,46 +490,17 @@ html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; }
 </div>
 
 <script>
-// ==== DIAGNOSTIC WATCHDOG: menampilkan error langsung di layar ====
-window.__POS_BOOTED = false;
-window.__POS_PARSED = false;
-window.__posShowError = function (msg) {
-    var o = document.getElementById('loadingOverlay');
-    var t = document.getElementById('loadingText');
-    if (o && t) {
-        o.style.display = 'flex';
-        t.innerHTML = '<span style="color:#f87171;font-weight:bold">ERROR:</span> ' + msg +
-                      '<br><span style="color:#a1a1aa">Tekan F12 > Console untuk detail</span>';
-    }
-};
-window.addEventListener('error', function (e) {
-    window.__posShowError((e.message || 'Script error') + ' (baris ' + (e.lineno || '?') + ')');
-});
-window.addEventListener('unhandledrejection', function (e) {
-    var r = e.reason;
-    window.__posShowError('Async: ' + (r && r.message ? r.message : r));
-});
-setTimeout(function () {
-    if (!window.__POS_PARSED) {
-        window.__posShowError('Script utama gagal diparsing. Salin ulang file dengan benar / hard refresh (Ctrl+F5).');
-    } else if (!window.__POS_BOOTED) {
-        window.__posShowError('Boot menggantung. Buka Console (F12) lalu kirim screenshot error-nya.');
-    }
-}, 12000);
-</script>
+// ============================================================
+// APLIKASI POS - ENTERPRISE EDITION v2.1 (CLEAN BUILD)
+// ============================================================
 
-    <script>
 'use strict';
-// ============================================================
-// APLIKASI POS - ENTERPRISE (HARDENED BUILD)
-// Syntax aman untuk browser lama, fallback storage, migrasi v1
-// ============================================================
 
 var CONFIG = {
     DB_NAME: 'AplikasiPOS_DB',
     STORES: ['katalog', 'belanja', 'penjualan', 'pengeluaran', 'hutang'],
     SYNC_THROTTLE_MS: 60000,
-    DEFAULT_PIN_HASH: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4' // sha256("1234")
+    DEFAULT_PIN_HASH: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4'
 };
 
 var state = {
@@ -557,7 +518,6 @@ var state = {
 };
 
 // ================= UTILS =================
-// ================= UTILS =================
 function el(id) { return document.getElementById(id); }
 function escapeHtml(s) {
     if (s === null || s === undefined) return '';
@@ -569,8 +529,6 @@ function escapeHtml(s) {
 function formatRupiah(n) {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
 }
-
-// --- PERBAIKAN FORMAT ANGKA (FIX BUG KEMBALIAN) ---
 function parseNumber(val) {
     if (val === null || val === undefined) return 0;
     var s = String(val).replace(/[^0-9.,]/g, '');
@@ -579,7 +537,6 @@ function parseNumber(val) {
     var n = parseFloat(s);
     return isNaN(n) ? 0 : n;
 }
-
 function formatNumberWithDots(val) {
     var n = (typeof val === 'number') ? val : parseNumber(val);
     if (!n) return '';
@@ -587,7 +544,6 @@ function formatNumberWithDots(val) {
     parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     return parts.join(',');
 }
-
 function formatNumberInput(inputEl) {
     var raw = String(inputEl.value || '');
     var cleaned = raw.replace(/[^0-9,]/g, '');
@@ -604,8 +560,6 @@ function formatNumberInput(inputEl) {
     if (hasComma) out += ',' + (cleaned.split(',')[1] || '').slice(0, 3);
     inputEl.value = out;
 }
-// --- AKHIR PERBAIKAN ---
-
 function generateId(prefix) {
     return prefix + '-' + Date.now().toString().slice(-6) + Math.floor(Math.random() * 90 + 10);
 }
@@ -644,7 +598,8 @@ function verifyPin(pin) {
         return h === state.settings.pinHash;
     });
 }
-// ================= STORAGE (IDB + FALLBACK LOCALSTORAGE) =================
+
+// ================= STORAGE =================
 function dbOpen() {
     return new Promise(function (resolve, reject) {
         if (!window.indexedDB) { reject(new Error('IndexedDB tidak tersedia')); return; }
@@ -732,8 +687,6 @@ function storageSaveSettings() {
     try { localStorage.setItem('pos2_settings', JSON.stringify(state.settings)); } catch (e) {}
     return Promise.resolve();
 }
-
-// Migrasi otomatis dari versi lama (localStorage v1)
 function migrateFromV1() {
     try {
         var old = localStorage.getItem('aplikasi_pos_katalog');
@@ -987,8 +940,8 @@ function renderPenjualanCart() {
     hitungKembalian();
 }
 function hitungKembalian() {
-    var dibayar = formatRupiah(el('penjualanFormDibayar').value);
-    var total = formatRupiah(el('penjualanTotalHargaText').innerText);
+    var dibayar = parseNumber(el('penjualanFormDibayar').value);
+    var total = parseNumber(el('penjualanTotalHargaText').innerText);
     el('penjualanFormKembalian').value = formatRupiah(dibayar - total);
 }
 
@@ -1638,7 +1591,6 @@ function initEvents() {
     el('editKatalogHargaGrosir').addEventListener('input', function (e) { formatNumberInput(e.target); });
     el('editKatalogHargaRetail').addEventListener('input', function (e) { formatNumberInput(e.target); });
 
-    // Keyboard: hardware scanner + shortcuts
     document.addEventListener('keydown', function (e) {
         if (!el('loginScreen').classList.contains('hidden')) return;
         var active = document.activeElement;
@@ -1688,7 +1640,7 @@ function initApp() {
     return dbOpen().then(function () {
         state.useIDB = true;
     }).catch(function () {
-        state.useIDB = false; // fallback localStorage aman
+        state.useIDB = false;
     }).then(function () {
         setLoading(true, 'Memuat data...');
         return storageLoadAll();
@@ -1714,23 +1666,21 @@ function initApp() {
         window.history.replaceState({ view: 'viewHome' }, '');
         setLoading(false);
         el('loginScreen').classList.remove('hidden');
-        window.__POS_BOOTED = true;
         if (!state.useIDB) showToast('Mode kompatibilitas: penyimpanan lokal sederhana', 'warning');
     });
 }
 
-window.__POS_PARSED = true;
 (function boot() {
     function start() {
         initApp().catch(function (err) {
-            window.__posShowError('Gagal boot: ' + (err && err.message ? err.message : err));
+            console.error('Boot error:', err);
+            setLoading(false);
+            el('loadingText').innerHTML = '<span style="color:#f87171;font-weight:bold">ERROR:</span> ' + (err && err.message ? err.message : 'Unknown error');
         });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
     else start();
 })();
-}
 </script>
-    
 </body>
 </html>
