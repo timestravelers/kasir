@@ -968,8 +968,8 @@ function renderPenjualanCart() {
     hitungKembalian();
 }
 function hitungKembalian() {
-    var dibayar = parseNumber(el('penjualanFormDibayar').value);
-    var total = parseNumber(el('penjualanTotalHargaText').innerText);
+    var dibayar = formatRupiah(el('penjualanFormDibayar').value);
+    var total = formatRupiah(el('penjualanTotalHargaText').innerText);
     el('penjualanFormKembalian').value = formatRupiah(dibayar - total);
 }
 
