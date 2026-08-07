@@ -10,8 +10,25 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
+<!-- 1. Penangkal Warning Tailwind (Letakkan PALING ATAS di dalam <head>) -->
+<script>
+    (function() {
+        const __originalWarn = console.warn;
+        console.warn = function(...args) {
+            // Filter dan sembunyikan warning spesifik dari Tailwind CDN
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) return;
+            __originalWarn.apply(console, args);
+        };
+    })();
+</script>
+
+<!-- 2. Tailwind CSS (Akan berjalan tanpa memunculkan warning) -->
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<!-- 3. Font Awesome versi terbaru (Fix Firefox Glyph Bbox) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
