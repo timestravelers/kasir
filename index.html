@@ -576,15 +576,41 @@ function formatNumberWithDots(val) {
     return parts.join(',');
 }
 function parseNumber(val) {
-    if (!val) return 0;
-    var cleaned = String(val).replace(/[^0-9.,]/g, '');
-    if (cleaned.indexOf(',') > -1) cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-    var num = parseFloat(cleaned);
-    return isNaN(num) ? 0 : num;
+// Standar Indonesia: TITIK = ribuan, KOMA = desimal (konsisten di semua fungsi)
+function parseNumber(val) {
+    if (val === null || val === undefined) return 0;
+    var s = String(val).replace(/[^0-9.,]/g, '');
+    if (!s) return 0;
+    s = s.replace(/\./g, '').replace(',', '.'); // buang titik ribuan, koma jadi desimal
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
 }
+
+function formatNumberWithDots(val) {
+    var n = (typeof val === 'number') ? val : parseNumber(val);
+    if (!n) return '';
+    var parts = String(n).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return parts.join(',');
+}
+
 function formatNumberInput(inputEl) {
-    var p = parseNumber(inputEl.value);
-    inputEl.value = p ? formatNumberWithDots(p) : '';
+    var raw = String(inputEl.value || '');
+    // Simpan hanya angka + koma (titik ribuan dibuang agar tidak merusak input)
+    var cleaned = raw.replace(/[^0-9,]/g, '');
+    var firstComma = cleaned.indexOf(',');
+    if (firstComma > -1) {
+        // Hanya boleh satu koma desimal
+        cleaned = cleaned.slice(0, firstComma + 1) + cleaned.slice(firstComma + 1).replace(/,/g, '');
+    }
+    var hasComma = firstComma > -1;
+    var intPart = cleaned.split(',')[0].replace(/^0+(?=\d)/, '');
+    var out = '';
+    if (intPart !== '' || hasComma) {
+        out = (intPart || '0').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+    if (hasComma) out += ',' + (cleaned.split(',')[1] || '').slice(0, 3);
+    inputEl.value = out;
 }
 function generateId(prefix) {
     return prefix + '-' + Date.now().toString().slice(-6) + Math.floor(Math.random() * 90 + 10);
